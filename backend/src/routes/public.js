@@ -127,6 +127,23 @@ router.get("/bookings/:id", async (request, response, next) => {
   }
 });
 
+router.post("/booking-lookup", async (request, response, next) => {
+  try {
+    const { bookingId, email } = z.object({
+      bookingId: z.string().min(6),
+      email: z.string().email()
+    }).parse(request.body);
+    const booking = await getBookingPayload(bookingId.trim().toUpperCase());
+    if (!booking || booking.customer.email.toLowerCase() !== email.trim().toLowerCase()) {
+      response.status(404).json({ error: "We could not find a booking matching that reference and email." });
+      return;
+    }
+    response.json(booking);
+  } catch (error) {
+    next(error);
+  }
+});
+
 async function getBookingPayload(id) {
   const result = await query(
     `SELECT b.*, i.invoice_number, i.currency

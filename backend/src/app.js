@@ -9,9 +9,10 @@ import adminRoutes from "./routes/admin.js";
 import { migrate } from "./db/migrate.js";
 
 const app = express();
-const allowedOrigins = (process.env.FRONTEND_URL || "http://127.0.0.1:5173,http://localhost:5173")
+const allowedOrigins = `${process.env.FRONTEND_URL || ""},http://127.0.0.1:5173,http://localhost:5173`
   .split(",")
-  .map((origin) => origin.trim());
+  .map((origin) => origin.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
 
 await migrate();
 
@@ -20,7 +21,8 @@ app.use(morgan("dev"));
 app.use(express.json({ limit: "1mb" }));
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) callback(null, true);
+    const normalizedOrigin = origin?.replace(/\/+$/, "");
+    if (!origin || allowedOrigins.includes(normalizedOrigin)) callback(null, true);
     else callback(new Error("Not allowed by CORS."));
   },
   credentials: true

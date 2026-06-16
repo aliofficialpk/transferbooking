@@ -13,6 +13,7 @@ import {
   Download,
   FileText,
   Gauge,
+  HelpCircle,
   Lock,
   MapPin,
   Moon,
@@ -31,7 +32,26 @@ import {
 } from "lucide-react";
 import "./styles.css";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:4000";
+const API_URL = resolveApiUrl(import.meta.env.VITE_API_URL || "http://127.0.0.1:4000");
+
+function resolveApiUrl(rawValue) {
+  const fallback = "http://127.0.0.1:4000";
+  const candidates = String(rawValue || fallback)
+    .split(",")
+    .map((value) => value.trim().replace(/\/+$/, ""))
+    .filter(Boolean);
+  const isLocalPage = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+  const preferred = candidates.find((candidate) => {
+    try {
+      const hostname = new URL(candidate).hostname;
+      const isLocalApi = ["localhost", "127.0.0.1", "::1"].includes(hostname);
+      return isLocalPage ? isLocalApi : !isLocalApi;
+    } catch {
+      return false;
+    }
+  });
+  return preferred || candidates[0] || fallback;
+}
 
 const api = {
   token: localStorage.getItem("adminToken") || "",
@@ -88,8 +108,8 @@ function App() {
       <main className="loading">
         <div className="loading-card">
           <Plane size={30} />
-          <h1>Connecting to live booking platform</h1>
-          <p>{configError || "Loading fleet, slabs and settings from the backend database."}</p>
+          <h1>Preparing your chauffeur booking</h1>
+          <p>{configError || "Loading vehicles, fares and travel options."}</p>
           {configError && <button className="action-button" onClick={refreshConfig}>Retry connection</button>}
         </div>
       </main>
@@ -102,6 +122,7 @@ function App() {
       {toast && <Toast message={toast} onClose={() => setToast("")} />}
       {route === "home" && <HomePage config={config} setRoute={setRoute} />}
       {route === "book" && <BookingPage config={config} onInvoice={setInvoiceId} onToast={setToast} />}
+      {route === "my-booking" && <MyBookingPage company={config.company} onToast={setToast} />}
       {route === "fleet" && <FleetPage config={config} setRoute={setRoute} />}
       {route === "how" && <HowPage />}
       {route === "staff-login" && <AdminLogin setRoute={setRoute} onToast={setToast} />}
@@ -139,8 +160,9 @@ function Header({ company, route, setRoute }) {
         {[
           ["home", "Home"],
           ["book", "Book"],
+          ["my-booking", "My Booking"],
           ["fleet", "Fleet"],
-          ["how", "Guide"]
+          ["how", "Help"]
         ].map(([id, label]) => (
           <button key={id} className={route === id ? "active" : ""} onClick={() => setRoute(id)}>{label}</button>
         ))}
@@ -155,22 +177,25 @@ function HomePage({ config, setRoute }) {
       <section className="hero-stage">
         <VehicleScene />
         <div className="hero-copy">
-          <p className="eyebrow">Live database-backed chauffeur booking</p>
-          <h1>Fixed-fare airport transfers with premium fleet options.</h1>
-          <p className="hero-lead">A public booking experience connected to PostgreSQL. Customers receive clear quotes, bookings are stored instantly, and your team can manage vehicles, pricing and invoices from the admin portal.</p>
+          <p className="eyebrow">Airport transfers without surprises</p>
+          <h1>Professional chauffeur transfers for airports, hotels and business travel.</h1>
+          <p className="hero-lead">Book a fixed-fare private transfer with clear pricing before you confirm. Choose the right vehicle, add flight details, request meet-and-greet, and receive a booking reference with invoice details.</p>
           <div className="hero-actions">
             <button className="action-button" onClick={() => setRoute("book")}><CalendarClock size={18} /> Start booking</button>
             <button className="secondary dark" onClick={() => setRoute("fleet")}><Car size={18} /> View fleet</button>
           </div>
           <div className="hero-stats">
-            <span><ShieldCheck size={16} /> Stored in PostgreSQL</span>
-            <span><Route size={16} /> Mileage slab pricing</span>
-            <span><Moon size={16} /> Night and extras</span>
+            <span><ShieldCheck size={16} /> Fixed fare before booking</span>
+            <span><Route size={16} /> Extra stops supported</span>
+            <span><Moon size={16} /> Late-night pickups available</span>
           </div>
         </div>
       </section>
       <GuideSection />
+      <ServiceHighlights />
       <FleetPreview config={config} setRoute={setRoute} />
+      <AirportCoverage />
+      <FaqSection />
     </>
   );
 }
@@ -308,15 +333,15 @@ function GuideSection() {
   return (
     <section className="guide-section">
       <div className="guide-intro">
-        <p className="eyebrow">Guided booking</p>
-        <h2>Everything a public airport transfer system needs.</h2>
-        <p>Every quote uses database pricing. Every booking creates a stored record and invoice. Admins can update the fleet and mileage matrix any time.</p>
+        <p className="eyebrow">How your journey works</p>
+        <h2>From airport arrival to destination, every detail is clear.</h2>
+        <p>Tell us where and when you are travelling, choose the vehicle that fits your passengers and luggage, then confirm a fixed fare. Your booking reference lets you check details again any time.</p>
       </div>
       <div className="guide-grid">
-        <GuideCard icon={<MapPin size={20} />} title="Route and distance" text="Pickup, destination and extra stops are captured before pricing. Add Google Maps later with the backend API key." />
-        <GuideCard icon={<Car size={20} />} title="Fleet choice" text="Customers select the correct vehicle for passengers and luggage. Pricing changes per vehicle and mileage slab." />
-        <GuideCard icon={<WalletCards size={20} />} title="Transparent fare" text="Quotes show base fare, stops, meet-and-greet, child seats, night surcharge and return journeys." />
-        <GuideCard icon={<ClipboardCheck size={20} />} title="Operations ready" text="Admin users manage bookings, statuses, vehicles, pricing and invoices from a hidden staff portal." />
+        <GuideCard icon={<MapPin size={20} />} title="Enter your journey" text="Add airport, hotel, home address or extra stops. Include your flight number so the operator has the right arrival details." />
+        <GuideCard icon={<Car size={20} />} title="Choose your vehicle" text="Select a saloon, executive car, MPV or group van based on passenger and luggage needs." />
+        <GuideCard icon={<WalletCards size={20} />} title="See the full fare" text="The quote shows vehicle fare, stops, meet-and-greet, child seats, night surcharge and return-trip options." />
+        <GuideCard icon={<ClipboardCheck size={20} />} title="Confirm and track" text="After confirmation, use your booking reference and email to view status, passenger details and invoice summary." />
       </div>
     </section>
   );
@@ -330,8 +355,8 @@ function FleetPreview({ config, setRoute }) {
   return (
     <section className="content-band">
       <div className="section-head">
-        <p className="eyebrow">Live fleet</p>
-        <h2>Vehicles loaded from PostgreSQL.</h2>
+        <p className="eyebrow">Our chauffeur fleet</p>
+        <h2>Vehicles for solo travellers, families and business groups.</h2>
         <button className="secondary" onClick={() => setRoute("fleet")}>Explore all</button>
       </div>
       <div className="fleet-grid">
@@ -344,10 +369,94 @@ function FleetPreview({ config, setRoute }) {
 function FleetPage({ config, setRoute }) {
   return (
     <section className="page">
-      <PageTitle label="Fleet" title="Choose from live database vehicles." text="Each vehicle has its own mileage-slab pricing matrix, capacity, luggage allowance and active status controlled by the admin panel." />
+      <PageTitle label="Fleet" title="Choose the right vehicle for your transfer." text="Our fleet covers business travellers, VIP passengers, families with luggage and group airport transfers. Capacity and luggage guidance is shown before you book." />
       <div className="fleet-grid">{config.vehicles.map((vehicle) => <VehicleCard key={vehicle.id} vehicle={vehicle} />)}</div>
       <button className="action-button narrow" onClick={() => setRoute("book")}><CalendarClock size={18} /> Book a transfer</button>
     </section>
+  );
+}
+
+function MyBookingPage({ company, onToast }) {
+  const [lookup, setLookup] = useState({ bookingId: "", email: "" });
+  const [booking, setBooking] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  async function submit(event) {
+    event.preventDefault();
+    setLoading(true);
+    setBooking(null);
+    try {
+      const result = await api.post("/api/public/booking-lookup", lookup);
+      setBooking(result);
+      onToast("Booking found.");
+    } catch (error) {
+      onToast(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section className="page booking-lookup-page">
+      <PageTitle
+        label="My booking"
+        title="Check your chauffeur transfer details."
+        text="Enter the booking reference and passenger email used at confirmation. You can review status, route, vehicle, flight details and invoice breakdown."
+      />
+      <div className="lookup-grid">
+        <form className="booking-card lookup-card" onSubmit={submit}>
+          <StepTitle icon={<Search size={19} />} title="Find booking" label="Passenger lookup" />
+          <Field label="Booking reference" value={lookup.bookingId} onChange={(value) => setLookup({ ...lookup, bookingId: value })} placeholder="INV or booking reference" required />
+          <Field label="Passenger email" type="email" value={lookup.email} onChange={(value) => setLookup({ ...lookup, email: value })} placeholder="you@example.com" required />
+          <button className="action-button" type="submit" disabled={loading}>{loading ? "Checking..." : "View my booking"}</button>
+          <p className="form-note">For security, the booking reference must match the passenger email on the booking.</p>
+        </form>
+        <BookingDetails booking={booking} company={company} />
+      </div>
+    </section>
+  );
+}
+
+function BookingDetails({ booking, company }) {
+  if (!booking) {
+    return (
+      <aside className="glass-panel lookup-empty">
+        <FileText size={34} />
+        <h2>Your booking summary will appear here.</h2>
+        <p>After lookup, you will see the assigned vehicle, journey time, fare breakdown, invoice number and current booking status.</p>
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="glass-panel booking-details">
+      <div className="status-ribbon">
+        <span>{booking.status}</span>
+        <strong>{booking.id}</strong>
+      </div>
+      <h2>{booking.pickup} to {booking.dropoff}</h2>
+      <dl>
+        <dt>Passenger</dt><dd>{booking.customer.name}</dd>
+        <dt>Date and time</dt><dd>{new Date(booking.dateTime).toLocaleString()}</dd>
+        <dt>Vehicle</dt><dd>{booking.vehicleName}</dd>
+        <dt>Flight</dt><dd>{booking.flightNumber || "Not supplied"}</dd>
+        <dt>Passengers</dt><dd>{booking.passengers} passenger(s), {booking.luggage} luggage</dd>
+        <dt>Extra stops</dt><dd>{booking.extraStops?.length ? booking.extraStops.join(", ") : "None"}</dd>
+        <dt>Invoice</dt><dd>{booking.invoiceNumber}</dd>
+      </dl>
+      <div className="fare-map">
+        {Object.entries({
+          "Base fare": booking.quote.basePrice,
+          "Extra stops": booking.quote.extraStopTotal,
+          "Meet & greet": booking.quote.meetAndGreetTotal,
+          "Child seats": booking.quote.childSeatTotal,
+          "Night surcharge": booking.quote.nightSurcharge,
+          "Return trip": booking.quote.returnTripTotal
+        }).map(([label, value]) => <React.Fragment key={label}><span>{label}</span><strong>{money(value, booking.currency)}</strong></React.Fragment>)}
+        <span>Total</span><strong>{money(booking.quote.total, booking.currency)}</strong>
+      </div>
+      <p className="form-note">For amendments, contact {company.phone} or {company.email} with your booking reference.</p>
+    </aside>
   );
 }
 
@@ -364,16 +473,73 @@ function VehicleCard({ vehicle }) {
   );
 }
 
+function ServiceHighlights() {
+  return (
+    <section className="content-band service-band">
+      <div className="section-head">
+        <div>
+          <p className="eyebrow">Why book with us</p>
+          <h2>Built around reliable airport travel.</h2>
+        </div>
+      </div>
+      <div className="service-grid">
+        <GuideCard icon={<Plane size={20} />} title="Airport pickup ready" text="Add your flight number and pickup time so the operator has your arrival details before dispatch." />
+        <GuideCard icon={<ShieldCheck size={20} />} title="Clear confirmed fare" text="See your transfer cost before booking, including premium extras and late-night charges where applicable." />
+        <GuideCard icon={<Users size={20} />} title="Passenger and luggage fit" text="Vehicle cards show passenger and luggage capacity so you can choose comfortably." />
+        <GuideCard icon={<FileText size={20} />} title="Invoice included" text="Every confirmed booking has invoice details available through the booking reference lookup." />
+      </div>
+    </section>
+  );
+}
+
+function AirportCoverage() {
+  const airports = ["Heathrow", "Gatwick", "Luton", "Stansted", "London City", "Southampton"];
+  return (
+    <section className="content-band airport-band">
+      <div className="section-head">
+        <div>
+          <p className="eyebrow">Airport coverage</p>
+          <h2>Private transfers for major airports and long-distance journeys.</h2>
+          <p>Use the booking form for airport pickups, hotel transfers, business meetings, events and family travel. Extra drop-offs are supported for multi-stop journeys.</p>
+        </div>
+      </div>
+      <div className="airport-list">
+        {airports.map((airport) => <span key={airport}><Plane size={16} /> {airport}</span>)}
+      </div>
+    </section>
+  );
+}
+
+function FaqSection() {
+  return (
+    <section className="content-band faq-band">
+      <div className="section-head">
+        <div>
+          <p className="eyebrow">Questions</p>
+          <h2>Before you travel.</h2>
+        </div>
+      </div>
+      <div className="faq-grid">
+        <GuideCard icon={<WalletCards size={20} />} title="Is the quote fixed?" text="Yes. The fare shown before confirmation is stored with the booking, including selected extras." />
+        <GuideCard icon={<MapPin size={20} />} title="Can I add extra stops?" text="Yes. Add one or more extra drop-offs before calculating your quote." />
+        <GuideCard icon={<Armchair size={20} />} title="Can I request child seats?" text="Yes. Add the number of child seats in the booking form and the quote updates the breakdown." />
+        <GuideCard icon={<FileText size={20} />} title="Where is my invoice?" text="Use My Booking with your reference and email to view invoice details and print the page." />
+      </div>
+    </section>
+  );
+}
+
 function HowPage() {
   return (
     <section className="page">
-      <PageTitle label="How it works" title="A clear workflow for customers and operators." text="The platform separates public booking from hidden admin operations while sharing the same PostgreSQL data." />
+      <PageTitle label="Help" title="Everything customers need to know before booking." text="Use this guide to understand quotes, booking references, airport pickups, extras and invoices." />
       <div className="timeline">
-        <GuideCard icon={<Route size={20} />} title="1. Customer submits route" text="The form collects journey date/time, flight number, passenger details, luggage and optional stops." />
-        <GuideCard icon={<Gauge size={20} />} title="2. Backend calculates fare" text="The API selects the matching mileage slab and vehicle price, then applies extras and surcharges." />
-        <GuideCard icon={<Check size={20} />} title="3. Booking is stored" text="Confirmed bookings, quote breakdowns and invoices are inserted into Neon PostgreSQL." />
-        <GuideCard icon={<Settings size={20} />} title="4. Admin manages operations" text="Staff can review bookings, change statuses, update fleet details and edit pricing without deployments." />
+        <GuideCard icon={<Route size={20} />} title="1. Add route details" text="Enter pickup, drop-off, date, time, passengers, luggage and optional stops." />
+        <GuideCard icon={<Gauge size={20} />} title="2. Review the fare" text="Your quote is itemised so you can see the vehicle fare and any extras before confirming." />
+        <GuideCard icon={<Check size={20} />} title="3. Receive a reference" text="After booking, keep your reference number and email address for checking your transfer later." />
+        <GuideCard icon={<HelpCircle size={20} />} title="4. Need changes?" text="Use your booking reference to review details, then contact the operator if a change is required." />
       </div>
+      <FaqSection />
     </section>
   );
 }
