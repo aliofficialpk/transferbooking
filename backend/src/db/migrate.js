@@ -18,38 +18,38 @@ const slabs = [
 const vehicles = [
   {
     id: "saloon",
-    name: "Mercedes E-Class Saloon",
-    category: "Executive Saloon",
+    name: "Saloon",
+    category: "Saloon",
     capacity: 3,
     luggage: 2,
-    description: "Best for airport transfers, city hotels, and corporate passengers.",
+    description: "Comfortable airport transfer with a private saloon car.",
     prices: [38, 48, 58, 70, 92, 112, 155, 195, 270]
   },
   {
     id: "executive",
-    name: "Mercedes S-Class Executive",
+    name: "Executive",
     category: "Executive",
     capacity: 3,
     luggage: 2,
-    description: "Quiet premium cabin for VIP arrivals, directors, and event travel.",
+    description: "Premium executive car for long-distance airport transfers.",
     prices: [55, 70, 84, 98, 132, 158, 220, 270, 380]
   },
   {
-    id: "mpv",
-    name: "Mercedes V-Class MPV",
-    category: "Luxury MPV",
-    capacity: 7,
-    luggage: 7,
-    description: "Spacious airport transfer for families, groups, and extra luggage.",
+    id: "people-carrier",
+    name: "People Carrier",
+    category: "People Carrier",
+    capacity: 6,
+    luggage: 6,
+    description: "Flexible family transfer with space for passengers and luggage.",
     prices: [70, 88, 105, 124, 160, 195, 270, 330, 465]
   },
   {
-    id: "eight-seater",
-    name: "8-Seater Executive Van",
-    category: "Group Transfer",
-    capacity: 8,
-    luggage: 8,
-    description: "Practical group transfer with fixed pricing and room for cases.",
+    id: "mpv",
+    name: "MPV",
+    category: "MPV",
+    capacity: 7,
+    luggage: 7,
+    description: "Spacious multi-purpose vehicle for larger groups.",
     prices: [78, 96, 116, 138, 178, 215, 295, 360, 510]
   }
 ];
@@ -64,6 +64,16 @@ const defaultCompany = {
 };
 
 const defaultPricing = {
+  pricingMode: "perMile",
+  perMileRates: {
+    saloon: 1.99
+  },
+  longDistanceThresholdMiles: 100,
+  longDistanceRates: {
+    executive: 2.19,
+    "people-carrier": 2.49,
+    mpv: 2.99
+  },
   extraStopMode: "fixed",
   extraStopFixedAmount: 12,
   extraStopPercent: 8,

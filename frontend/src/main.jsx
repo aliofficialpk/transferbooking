@@ -88,6 +88,12 @@ function App() {
   const [configError, setConfigError] = useState("");
   const [invoiceId, setInvoiceId] = useState("");
   const [toast, setToast] = useState("");
+  const [selectedVehicleId, setSelectedVehicleId] = useState("");
+
+  function bookVehicle(vehicleId) {
+    setSelectedVehicleId(vehicleId);
+    setRoute("book");
+  }
 
   async function refreshConfig() {
     setConfigError("");
@@ -120,10 +126,10 @@ function App() {
     <main className="app-shell">
       <Header company={config.company} route={route} setRoute={setRoute} />
       {toast && <Toast message={toast} onClose={() => setToast("")} />}
-      {route === "home" && <HomePage config={config} setRoute={setRoute} />}
-      {route === "book" && <BookingPage config={config} onInvoice={setInvoiceId} onToast={setToast} />}
+      {route === "home" && <HomePage config={config} setRoute={setRoute} onSelectVehicle={bookVehicle} />}
+      {route === "book" && <BookingPage config={config} onInvoice={setInvoiceId} onToast={setToast} initialVehicleId={selectedVehicleId} />}
       {route === "my-booking" && <MyBookingPage company={config.company} onToast={setToast} />}
-      {route === "fleet" && <FleetPage config={config} setRoute={setRoute} />}
+      {route === "fleet" && <FleetPage config={config} setRoute={setRoute} onSelectVehicle={bookVehicle} selectedVehicleId={selectedVehicleId} />}
       {route === "how" && <HowPage />}
       {route === "staff-login" && <AdminLogin setRoute={setRoute} onToast={setToast} />}
       {route === "admin" && <AdminDashboard publicConfig={config} refreshPublicConfig={refreshConfig} onToast={setToast} />}
@@ -171,7 +177,7 @@ function Header({ company, route, setRoute }) {
   );
 }
 
-function HomePage({ config, setRoute }) {
+function HomePage({ config, setRoute, onSelectVehicle }) {
   return (
     <>
       <section className="hero-stage">
@@ -193,7 +199,7 @@ function HomePage({ config, setRoute }) {
       </section>
       <GuideSection />
       <ServiceHighlights />
-      <FleetPreview config={config} setRoute={setRoute} />
+      <FleetPreview config={config} setRoute={setRoute} onSelectVehicle={onSelectVehicle} />
       <AirportCoverage />
       <FaqSection />
     </>
@@ -351,7 +357,7 @@ function GuideCard({ icon, title, text }) {
   return <article><span>{icon}</span><h3>{title}</h3><p>{text}</p></article>;
 }
 
-function FleetPreview({ config, setRoute }) {
+function FleetPreview({ config, setRoute, onSelectVehicle }) {
   return (
     <section className="content-band">
       <div className="section-head">
@@ -360,17 +366,21 @@ function FleetPreview({ config, setRoute }) {
         <button className="secondary" onClick={() => setRoute("fleet")}>Explore all</button>
       </div>
       <div className="fleet-grid">
-        {config.vehicles.slice(0, 3).map((vehicle) => <VehicleCard key={vehicle.id} vehicle={vehicle} />)}
+        {config.vehicles.slice(0, 3).map((vehicle) => (
+          <VehicleCard key={vehicle.id} vehicle={vehicle} onSelect={onSelectVehicle} />
+        ))}
       </div>
     </section>
   );
 }
 
-function FleetPage({ config, setRoute }) {
+function FleetPage({ config, setRoute, onSelectVehicle, selectedVehicleId }) {
   return (
     <section className="page">
       <PageTitle label="Fleet" title="Choose the right vehicle for your transfer." text="Our fleet covers business travellers, VIP passengers, families with luggage and group airport transfers. Capacity and luggage guidance is shown before you book." />
-      <div className="fleet-grid">{config.vehicles.map((vehicle) => <VehicleCard key={vehicle.id} vehicle={vehicle} />)}</div>
+      <div className="fleet-grid">{config.vehicles.map((vehicle) => (
+        <VehicleCard key={vehicle.id} vehicle={vehicle} onSelect={onSelectVehicle} selected={vehicle.id === selectedVehicleId} />
+      ))}</div>
       <button className="action-button narrow" onClick={() => setRoute("book")}><CalendarClock size={18} /> Book a transfer</button>
     </section>
   );
@@ -380,6 +390,7 @@ function MyBookingPage({ company, onToast }) {
   const [lookup, setLookup] = useState({ bookingId: "", email: "" });
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
 
   async function submit(event) {
     event.preventDefault();
@@ -411,13 +422,14 @@ function MyBookingPage({ company, onToast }) {
           <button className="action-button" type="submit" disabled={loading}>{loading ? "Checking..." : "View my booking"}</button>
           <p className="form-note">For security, the booking reference must match the passenger email on the booking.</p>
         </form>
-        <BookingDetails booking={booking} company={company} />
+        <BookingDetails booking={booking} company={company} onViewInvoice={() => setInvoiceModalOpen(true)} />
       </div>
+      {booking && invoiceModalOpen && <InvoiceModal bookingId={booking.id} company={company} onClose={() => setInvoiceModalOpen(false)} />}
     </section>
   );
 }
 
-function BookingDetails({ booking, company }) {
+function BookingDetails({ booking, company, onViewInvoice }) {
   if (!booking) {
     return (
       <aside className="glass-panel lookup-empty">
@@ -455,20 +467,37 @@ function BookingDetails({ booking, company }) {
         }).map(([label, value]) => <React.Fragment key={label}><span>{label}</span><strong>{money(value, booking.currency)}</strong></React.Fragment>)}
         <span>Total</span><strong>{money(booking.quote.total, booking.currency)}</strong>
       </div>
-      <p className="form-note">For amendments, contact {company.phone} or {company.email} with your booking reference.</p>
+      <div className="booking-actions">
+        <button className="secondary" type="button" onClick={onViewInvoice}><FileText size={16} /> View invoice</button>
+        <p className="form-note">For amendments, contact {company.phone} or {company.email} with your booking reference.</p>
+      </div>
     </aside>
   );
 }
 
-function VehicleCard({ vehicle }) {
+function VehicleCard({ vehicle, onSelect, selected }) {
+  const handleClick = onSelect ? () => onSelect(vehicle.id) : undefined;
+
   return (
-    <article className="vehicle-card">
+    <article
+      className={`vehicle-card ${onSelect ? "clickable" : ""} ${selected ? "selected" : ""}`}
+      onClick={handleClick}
+      role={onSelect ? "button" : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      onKeyDown={onSelect ? (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          handleClick();
+        }
+      } : undefined}
+    >
       <div className="vehicle-visual"><Car size={46} /></div>
       <p>{vehicle.category}</p>
       <h3>{vehicle.name}</h3>
       <span><Users size={15} /> {vehicle.capacity} passengers</span>
       <span><Briefcase size={15} /> {vehicle.luggage} luggage</span>
       <small>{vehicle.description}</small>
+      {onSelect && <small className="vehicle-action-hint">Tap to select and book</small>}
     </article>
   );
 }
@@ -544,12 +573,25 @@ function HowPage() {
   );
 }
 
-function BookingPage({ config, onInvoice, onToast }) {
+const locationSuggestions = [
+  "Heathrow Terminal 5",
+  "Gatwick Airport",
+  "London City Airport",
+  "Stansted Airport",
+  "Luton Airport",
+  "Mayfair, London",
+  "King's Cross Station",
+  "Paddington Station",
+  "Canary Wharf",
+  "Westminster, London"
+];
+
+function BookingPage({ config, onInvoice, onToast, initialVehicleId }) {
   const [form, setForm] = useState({
     pickup: "",
     dropoff: "",
     extraStops: [],
-    vehicleId: config.vehicles[0]?.id || "",
+    vehicleId: initialVehicleId || config.vehicles[0]?.id || "",
     dateTime: "",
     manualDistanceMiles: "",
     passengers: 1,
@@ -561,6 +603,15 @@ function BookingPage({ config, onInvoice, onToast }) {
   });
   const [quote, setQuote] = useState(null);
   const selectedVehicle = config.vehicles.find((vehicle) => vehicle.id === form.vehicleId);
+
+  useEffect(() => {
+    if (initialVehicleId) {
+      setForm((current) =>
+        current.vehicleId !== initialVehicleId ? { ...current, vehicleId: initialVehicleId } : current
+      );
+      setQuote(null);
+    }
+  }, [initialVehicleId]);
 
   function update(key, value) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -596,11 +647,22 @@ function BookingPage({ config, onInvoice, onToast }) {
     <section className="booking-grid page-tight">
       <form className="booking-card primary-card" onSubmit={getQuote}>
         <StepTitle icon={<MapPin size={19} />} title="Journey" label="Step 1" />
-        <Field label="Pickup" value={form.pickup} onChange={(value) => update("pickup", value)} placeholder="Heathrow Terminal 5" required />
-        <Field label="Drop-off" value={form.dropoff} onChange={(value) => update("dropoff", value)} placeholder="Mayfair, London" required />
-        <ExtraStops stops={form.extraStops} onChange={(extraStops) => update("extraStops", extraStops)} />
+        <Field label="Pickup" value={form.pickup} onChange={(value) => update("pickup", value)} placeholder="Heathrow Terminal 5" required list="locations" />
+        <Field label="Drop-off" value={form.dropoff} onChange={(value) => update("dropoff", value)} placeholder="Mayfair, London" required list="locations" />
+        <ExtraStops stops={form.extraStops} onChange={(extraStops) => update("extraStops", extraStops)} list="locations" />
+        <datalist id="locations">
+          {locationSuggestions.map((location) => <option key={location} value={location} />)}
+        </datalist>
 
         <StepTitle icon={<Car size={19} />} title="Vehicle" label="Step 2" />
+        <label>
+          Vehicle type
+          <select value={form.vehicleId} onChange={(event) => update("vehicleId", event.target.value)}>
+            {config.vehicles.map((vehicle) => (
+              <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>
+            ))}
+          </select>
+        </label>
         <div className="vehicle-picker">
           {config.vehicles.map((vehicle) => (
             <button key={vehicle.id} type="button" className={form.vehicleId === vehicle.id ? "selected" : ""} onClick={() => update("vehicleId", vehicle.id)}>
@@ -655,7 +717,7 @@ function QuotePanel({ quote, currency, vehicle, onBook }) {
               Return: quote.breakdown.returnTripTotal
             }).map(([label, value]) => <React.Fragment key={label}><span>{label}</span><strong>{money(value, quote.currency)}</strong></React.Fragment>)}
           </div>
-          <div className="quote-route"><Route size={18} /><span>{quote.distanceMiles} miles, {quote.slab.label || `${quote.slab.minMiles}-${quote.slab.maxMiles}`}</span></div>
+          <div className="quote-route"><Route size={18} /><span>{quote.distanceMiles} miles {quote.slab ? `• ${quote.slab.label || `${quote.slab.minMiles}-${quote.slab.maxMiles}`}` : "• Per-mile pricing"}</span></div>
           <button className="action-button" type="button" onClick={onBook}><CalendarClock size={18} /> Confirm booking</button>
         </>
       ) : (
@@ -824,7 +886,7 @@ function StepTitle({ icon, label, title }) {
 }
 
 function Field({ label, value, onChange, type = "text", required = false, placeholder = "", ...props }) {
-  return <label>{label}<input type={type} value={value} required={required} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} {...props} /></label>;
+  return <label>{label}<input type={type} value={value} required={required} placeholder={placeholder} list={props.list} onChange={(event) => onChange(event.target.value)} {...props} /></label>;
 }
 
 function Toggle({ checked, onChange, label }) {
