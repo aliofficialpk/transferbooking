@@ -89,10 +89,23 @@ function App() {
   const [invoiceId, setInvoiceId] = useState("");
   const [toast, setToast] = useState("");
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
+  const [justBookedInfo, setJustBookedInfo] = useState(null);
 
   function bookVehicle(vehicleId) {
     setSelectedVehicleId(vehicleId);
     setRoute("book");
+  }
+
+  function handleBookingComplete(bookingId, customerEmail) {
+    setJustBookedInfo({ bookingId, customerEmail });
+    setInvoiceId(bookingId);
+  }
+
+  function handleInvoiceClosed() {
+    if (justBookedInfo) {
+      setRoute("my-booking");
+      setInvoiceId("");
+    }
   }
 
   async function refreshConfig() {
@@ -127,13 +140,13 @@ function App() {
       <Header company={config.company} route={route} setRoute={setRoute} />
       {toast && <Toast message={toast} onClose={() => setToast("")} />}
       {route === "home" && <HomePage config={config} setRoute={setRoute} onSelectVehicle={bookVehicle} />}
-      {route === "book" && <BookingPage config={config} onInvoice={setInvoiceId} onToast={setToast} initialVehicleId={selectedVehicleId} />}
-      {route === "my-booking" && <MyBookingPage company={config.company} onToast={setToast} />}
+      {route === "book" && <BookingPage config={config} onInvoice={handleBookingComplete} onToast={setToast} initialVehicleId={selectedVehicleId} />}
+      {route === "my-booking" && <MyBookingPage company={config.company} onToast={setToast} justBookedInfo={justBookedInfo} onBookingViewed={() => setJustBookedInfo(null)} />}
       {route === "fleet" && <FleetPage config={config} setRoute={setRoute} onSelectVehicle={bookVehicle} selectedVehicleId={selectedVehicleId} />}
       {route === "how" && <HowPage />}
       {route === "staff-login" && <AdminLogin setRoute={setRoute} onToast={setToast} />}
       {route === "admin" && <AdminDashboard publicConfig={config} refreshPublicConfig={refreshConfig} onToast={setToast} />}
-      {invoiceId && <InvoiceModal bookingId={invoiceId} company={config.company} onClose={() => setInvoiceId("")} />}
+      {invoiceId && <InvoiceModal bookingId={invoiceId} company={config.company} onClose={handleInvoiceClosed} />}
     </main>
   );
 }
@@ -386,11 +399,26 @@ function FleetPage({ config, setRoute, onSelectVehicle, selectedVehicleId }) {
   );
 }
 
-function MyBookingPage({ company, onToast }) {
-  const [lookup, setLookup] = useState({ bookingId: "", email: "" });
+function MyBookingPage({ company, onToast, justBookedInfo, onBookingViewed }) {
+  const [lookup, setLookup] = useState({ bookingId: justBookedInfo?.bookingId || "", email: justBookedInfo?.customerEmail || "" });
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (justBookedInfo?.bookingId && justBookedInfo?.customerEmail) {
+      setLookup({ bookingId: justBookedInfo.bookingId, email: justBookedInfo.customerEmail });
+      setLoading(true);
+      api.post("/api/public/booking-lookup", { bookingId: justBookedInfo.bookingId, email: justBookedInfo.customerEmail })
+        .then((result) => {
+          setBooking(result);
+          onToast("Your booking was created successfully!");
+          onBookingViewed?.();
+        })
+        .catch((error) => onToast(error.message))
+        .finally(() => setLoading(false));
+    }
+  }, [justBookedInfo]);
 
   async function submit(event) {
     event.preventDefault();
@@ -636,7 +664,7 @@ function BookingPage({ config, onInvoice, onToast, initialVehicleId }) {
   async function book() {
     try {
       const booking = await api.post("/api/public/bookings", { ...form, distanceMiles: quote.distanceMiles });
-      onInvoice(booking.id);
+      onInvoice(booking.id, form.customer.email);
       onToast(`Booking confirmed: ${booking.id}`);
     } catch (error) {
       onToast(error.message);
@@ -852,11 +880,28 @@ function BookingRow({ booking, currency, refresh, onToast }) {
 function InvoiceModal({ bookingId, company, onClose }) {
   const [booking, setBooking] = useState(null);
   useEffect(() => { api.get(`/api/public/bookings/${bookingId}`).then(setBooking); }, [bookingId]);
-  if (!booking) return null;
+  if (!booking) return (
+    <div className="modal">
+      <div className="invoice">
+        <div style={{ display: "grid", gap: "12px", justifyItems: "center", padding: "40px" }}>
+          <Plane size={32} style={{ color: "#0f766e" }} />
+          <h2>Processing your booking...</h2>
+          <p style={{ color: "#657179" }}>Please wait while we finalize your invoice.</p>
+        </div>
+      </div>
+    </div>
+  );
   return (
     <div className="modal">
       <div className="invoice">
         <button className="close" onClick={onClose}>Close</button>
+        <div className="booking-success-banner">
+          <Check size={24} style={{ color: "#0f766e" }} />
+          <div>
+            <strong>Booking Confirmed!</strong>
+            <small>Reference: {booking.id}</small>
+          </div>
+        </div>
         <header><div className="invoice-brand"><Plane size={26} /><div><h2>{company.name}</h2><p>{company.email} - {company.phone}</p></div></div></header>
         <h3>Invoice {booking.invoiceNumber}</h3>
         <dl>
@@ -867,7 +912,7 @@ function InvoiceModal({ bookingId, company, onClose }) {
           <dt>Date</dt><dd>{new Date(booking.dateTime).toLocaleString()}</dd>
         </dl>
         <table><tbody>{Object.entries({ "Base fare": booking.quote.basePrice, "Extra drop-offs": booking.quote.extraStopTotal, "Meet & greet": booking.quote.meetAndGreetTotal, "Child seats": booking.quote.childSeatTotal, "Night surcharge": booking.quote.nightSurcharge, "Return trip": booking.quote.returnTripTotal }).map(([label, value]) => <tr key={label}><td>{label}</td><td>{money(value, booking.currency)}</td></tr>)}<tr className="total"><td>Total</td><td>{money(booking.quote.total, booking.currency)}</td></tr></tbody></table>
-        <div className="invoice-actions"><button className="secondary" onClick={() => window.print()}><Printer size={18} /> Print</button><button className="secondary" onClick={() => window.print()}><Download size={18} /> PDF</button></div>
+        <div className="invoice-actions"><button className="secondary" onClick={() => window.print()}><Printer size={18} /> Print</button><button className="secondary" onClick={() => window.print()}><Download size={18} /> PDF</button><button className="action-button" onClick={onClose}><Check size={18} /> View in My Booking</button></div>
       </div>
     </div>
   );
