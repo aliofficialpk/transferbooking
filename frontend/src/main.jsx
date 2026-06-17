@@ -66,6 +66,9 @@ const api = {
   },
   async patch(path, body, admin = false) {
     return request(path, { method: "PATCH", body: JSON.stringify(body) }, admin);
+  },
+  async delete(path, body, admin = false) {
+    return request(path, { method: "DELETE", body: body ? JSON.stringify(body) : undefined }, admin);
   }
 };
 
@@ -420,6 +423,17 @@ function MyBookingPage({ company, onToast, justBookedInfo, onBookingViewed }) {
     }
   }, [justBookedInfo]);
 
+  async function cancelBooking() {
+    if (!booking) return;
+    try {
+      const updated = await api.post(`/api/public/bookings/${booking.id}/cancel`, { email: lookup.email });
+      setBooking(updated);
+      onToast("Booking cancelled successfully.");
+    } catch (error) {
+      onToast(error.message);
+    }
+  }
+
   async function submit(event) {
     event.preventDefault();
     setLoading(true);
@@ -450,14 +464,14 @@ function MyBookingPage({ company, onToast, justBookedInfo, onBookingViewed }) {
           <button className="action-button" type="submit" disabled={loading}>{loading ? "Checking..." : "View my booking"}</button>
           <p className="form-note">For security, the booking reference must match the passenger email on the booking.</p>
         </form>
-        <BookingDetails booking={booking} company={company} onViewInvoice={() => setInvoiceModalOpen(true)} />
+        <BookingDetails booking={booking} company={company} onViewInvoice={() => setInvoiceModalOpen(true)} onCancelBooking={cancelBooking} />
       </div>
       {booking && invoiceModalOpen && <InvoiceModal bookingId={booking.id} company={company} onClose={() => setInvoiceModalOpen(false)} />}
     </section>
   );
 }
 
-function BookingDetails({ booking, company, onViewInvoice }) {
+function BookingDetails({ booking, company, onViewInvoice, onCancelBooking }) {
   if (!booking) {
     return (
       <aside className="glass-panel lookup-empty">
@@ -497,6 +511,9 @@ function BookingDetails({ booking, company, onViewInvoice }) {
       </div>
       <div className="booking-actions">
         <button className="secondary" type="button" onClick={onViewInvoice}><FileText size={16} /> View invoice</button>
+        {booking.status !== "cancelled" && booking.status !== "completed" && (
+          <button className="secondary danger" type="button" onClick={onCancelBooking}><Trash2 size={16} /> Cancel booking</button>
+        )}
         <p className="form-note">For amendments, contact {company.phone} or {company.email} with your booking reference.</p>
       </div>
     </aside>
@@ -662,8 +679,13 @@ function BookingPage({ config, onInvoice, onToast, initialVehicleId }) {
   }
 
   async function book() {
+    if (!quote?.distanceMiles) {
+      onToast("Please calculate a valid quote before confirming your booking.");
+      return;
+    }
+
     try {
-      const booking = await api.post("/api/public/bookings", { ...form, distanceMiles: quote.distanceMiles });
+      const booking = await api.post("/api/public/bookings", { ...form, distanceMiles: Number(quote.distanceMiles) });
       onInvoice(booking.id, form.customer.email);
       onToast(`Booking confirmed: ${booking.id}`);
     } catch (error) {
@@ -804,6 +826,27 @@ function AdminDashboard({ refreshPublicConfig, onToast }) {
     setBookings(nextBookings);
   }
 
+  async function deleteVehicle(id) {
+    try {
+      await api.delete(`/api/admin/vehicles/${id}`, null, true);
+      setConfig((current) => ({ ...current, vehicles: current.vehicles.filter((vehicle) => vehicle.id !== id) }));
+      await refresh();
+      onToast("Vehicle removed from fleet.");
+    } catch (error) {
+      onToast(error.message);
+    }
+  }
+
+  async function deleteBooking(id) {
+    try {
+      await api.delete(`/api/admin/bookings/${id}`, null, true);
+      await refresh();
+      onToast("Booking deleted.");
+    } catch (error) {
+      onToast(error.message);
+    }
+  }
+
   useEffect(() => {
     refresh().catch(() => location.hash = "/staff-login");
   }, []);
@@ -848,17 +891,18 @@ function AdminDashboard({ refreshPublicConfig, onToast }) {
               <td><input type="number" value={vehicle.luggage} onChange={(event) => updateVehicle(vehicle.id, { luggage: Number(event.target.value) })} /></td>
               <td><input type="checkbox" checked={vehicle.active} onChange={(event) => updateVehicle(vehicle.id, { active: event.target.checked })} /></td>
               {config.slabs.map((slab) => <td key={slab.id}><input type="number" value={vehicle.prices[slab.id] || 0} onChange={(event) => updatePrice(vehicle.id, slab.id, event.target.value)} /></td>)}
+              <td><button className="secondary danger small" type="button" onClick={() => deleteVehicle(vehicle.id)}>Delete</button></td>
             </tr>)}</tbody>
           </table>
         </div>
       </div>
       <div className="jobs-header"><StepTitle icon={<FileText />} title="Booking management" label={`${bookings.length} stored`} /><div className="search-box"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search bookings" /></div></div>
-      <div className="booking-list">{filtered.map((booking) => <BookingRow key={booking.id} booking={booking} currency={config.company.currency} refresh={refresh} onToast={onToast} />)}</div>
+      <div className="booking-list">{filtered.map((booking) => <BookingRow key={booking.id} booking={booking} currency={config.company.currency} refresh={refresh} onToast={onToast} onDeleteBooking={deleteBooking} />)}</div>
     </section>
   );
 }
 
-function BookingRow({ booking, currency, refresh, onToast }) {
+function BookingRow({ booking, currency, refresh, onToast, onDeleteBooking }) {
   async function changeStatus(status) {
     try {
       await api.patch(`/api/admin/bookings/${booking.id}/status`, { status }, true);
@@ -868,11 +912,23 @@ function BookingRow({ booking, currency, refresh, onToast }) {
       onToast(error.message);
     }
   }
+
+  async function deleteBooking() {
+    try {
+      await onDeleteBooking(booking.id);
+    } catch (error) {
+      onToast(error.message);
+    }
+  }
   return (
     <article className="job-card">
       <div className="job-route"><Plane size={18} /><strong>{booking.pickup}</strong><ChevronRight size={16} /><strong>{booking.dropoff}</strong></div>
       <p>{booking.customer.name} - {booking.vehicleName} - {new Date(booking.dateTime).toLocaleString()}</p>
-      <div className="job-meta"><span>{booking.status}</span><span>{booking.passengers} pax</span><span>{booking.distanceMiles} mi</span><strong>{money(booking.quote.total, currency)}</strong><select value={booking.status} onChange={(event) => changeStatus(event.target.value)}><option>confirmed</option><option>assigned</option><option>completed</option><option>cancelled</option></select></div>
+      <div className="job-meta">
+        <span>{booking.status}</span><span>{booking.passengers} pax</span><span>{booking.distanceMiles} mi</span><strong>{money(booking.quote.total, currency)}</strong>
+        <select value={booking.status} onChange={(event) => changeStatus(event.target.value)}><option>confirmed</option><option>assigned</option><option>completed</option><option>cancelled</option></select>
+        <button className="secondary danger small" type="button" onClick={deleteBooking}><Trash2 size={16} /> Delete</button>
+      </div>
     </article>
   );
 }

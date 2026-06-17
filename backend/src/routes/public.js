@@ -144,6 +144,26 @@ router.post("/booking-lookup", async (request, response, next) => {
   }
 });
 
+router.post("/bookings/:id/cancel", async (request, response, next) => {
+  try {
+    const { email } = z.object({ email: z.string().email() }).parse(request.body);
+    const bookingId = request.params.id.trim().toUpperCase();
+    const booking = await getBookingPayload(bookingId);
+    if (!booking || booking.customer.email.toLowerCase() !== email.trim().toLowerCase()) {
+      response.status(404).json({ error: "We could not find a booking matching that reference and email." });
+      return;
+    }
+    if (booking.status === "cancelled") {
+      response.status(400).json({ error: "This booking has already been cancelled." });
+      return;
+    }
+    await query("UPDATE bookings SET status = 'cancelled' WHERE id = $1", [bookingId]);
+    response.json(await getBookingPayload(bookingId));
+  } catch (error) {
+    next(error);
+  }
+});
+
 async function getBookingPayload(id) {
   const result = await query(
     `SELECT b.*, i.invoice_number, i.currency

@@ -122,6 +122,24 @@ router.patch("/bookings/:id/status", requireAdmin, async (request, response, nex
   }
 });
 
+router.delete("/bookings/:id", requireAdmin, async (request, response, next) => {
+  try {
+    await query("DELETE FROM bookings WHERE id = $1", [request.params.id]);
+    response.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/vehicles/:id", requireAdmin, async (request, response, next) => {
+  try {
+    await query("DELETE FROM vehicles WHERE id = $1", [request.params.id]);
+    response.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
 const configSchema = z.object({
   company: z.record(z.any()),
   settings: z.record(z.any()),
