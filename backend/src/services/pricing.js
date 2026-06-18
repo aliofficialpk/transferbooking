@@ -22,36 +22,11 @@ export function calculateQuote({ config, vehicleId, distanceMiles, dateTime, ext
   if (!milesValue || milesValue <= 0) throw statusError("Distance is required.", 422);
 
   const settings = config.settings;
-  const perMileMode = settings.pricingMode === "perMile";
   let basePrice = 0;
-  let baseRate = 0;
-  let slab = null;
-
-  if (perMileMode) {
-    const perMileRates = settings.perMileRates || {};
-    const longDistanceRates = settings.longDistanceRates || {};
-    const threshold = Number(settings.longDistanceThresholdMiles || 100);
-    const defaultRate = Number(perMileRates[vehicle.id] ?? perMileRates[vehicle.category] ?? 0);
-    const longDistanceRate = Number(longDistanceRates[vehicle.id] ?? longDistanceRates[vehicle.category] ?? 0);
-
-    if (milesValue > threshold && longDistanceRate > 0) {
-      baseRate = longDistanceRate;
-      basePrice = money(longDistanceRate * milesValue);
-    } else if (defaultRate > 0) {
-      baseRate = defaultRate;
-      basePrice = money(defaultRate * milesValue);
-    } else {
-      slab = findSlab(config.slabs, milesValue);
-      if (!slab) throw statusError("Distance is outside the configured pricing slabs.", 422);
-      basePrice = Number(vehicle.prices[slab.id] || 0);
-      if (!basePrice) throw statusError("Selected vehicle has no price for this mileage slab.", 422);
-    }
-  } else {
-    slab = findSlab(config.slabs, milesValue);
-    if (!slab) throw statusError("Distance is outside the configured pricing slabs.", 422);
-    basePrice = Number(vehicle.prices[slab.id] || 0);
-    if (!basePrice) throw statusError("Selected vehicle has no price for this mileage slab.", 422);
-  }
+  const slab = findSlab(config.slabs, milesValue);
+  if (!slab) throw statusError("Distance is outside the configured pricing bands.", 422);
+  basePrice = Number(vehicle.prices[slab.id] || 0);
+  if (!basePrice) throw statusError("Selected vehicle has no fare for this mileage band.", 422);
 
   const stopCount = (extraStops || []).filter(Boolean).length;
   const extraStopTotal =
@@ -76,7 +51,6 @@ export function calculateQuote({ config, vehicleId, distanceMiles, dateTime, ext
     currency: config.company.currency,
     breakdown: {
       basePrice,
-      baseRate: baseRate || undefined,
       extraStopTotal,
       meetAndGreetTotal,
       childSeatTotal,

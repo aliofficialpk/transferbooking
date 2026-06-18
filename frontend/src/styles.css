@@ -876,6 +876,13 @@ select:focus {
   margin: 0;
 }
 
+.panel-title p {
+  color: #66737a;
+  line-height: 1.5;
+  margin: 4px 0 0;
+  max-width: 720px;
+}
+
 .matrix {
   overflow-x: auto;
 }
@@ -899,8 +906,47 @@ th {
   min-width: 110px;
 }
 
+.matrix th span,
+.matrix th small {
+  display: block;
+}
+
+.matrix th small {
+  color: #9aa3a8;
+  font-weight: 800;
+  margin-top: 3px;
+}
+
 .matrix input {
   min-width: 92px;
+}
+
+.fare-input {
+  align-items: center;
+  background: #fffaf1;
+  border: 1px solid rgba(23, 32, 38, 0.13);
+  border-radius: 8px;
+  display: grid;
+  gap: 0;
+  grid-template-columns: auto minmax(86px, 1fr);
+  margin: 0;
+  overflow: hidden;
+}
+
+.fare-input span {
+  background: #edf6f3;
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 900;
+  height: 100%;
+  padding: 14px 8px;
+}
+
+.fare-input input {
+  background: transparent;
+  border: 0;
+  min-width: 86px;
+  outline: 0;
 }
 
 .search-box {

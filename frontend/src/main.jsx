@@ -80,7 +80,7 @@ async function request(path, options, admin) {
       ...(admin && api.token ? { Authorization: `Bearer ${api.token}` } : {})
     }
   });
-  const data = await response.json();
+  const data = response.status === 204 ? null : await response.json();
   if (!response.ok) throw new Error(data.error || "Request failed.");
   return data;
 }
@@ -767,11 +767,11 @@ function QuotePanel({ quote, currency, vehicle, onBook }) {
               Return: quote.breakdown.returnTripTotal
             }).map(([label, value]) => <React.Fragment key={label}><span>{label}</span><strong>{money(value, quote.currency)}</strong></React.Fragment>)}
           </div>
-          <div className="quote-route"><Route size={18} /><span>{quote.distanceMiles} miles {quote.slab ? `• ${quote.slab.label || `${quote.slab.minMiles}-${quote.slab.maxMiles}`}` : "• Per-mile pricing"}</span></div>
+          <div className="quote-route"><Route size={18} /><span>{quote.distanceMiles} miles estimated journey distance</span></div>
           <button className="action-button" type="button" onClick={onBook}><CalendarClock size={18} /> Confirm booking</button>
         </>
       ) : (
-        <div className="empty-quote"><Car size={30} /><p>Select a route and vehicle to reveal an instant fare.</p><small>{vehicle?.name || "Fleet"} pricing is loaded from PostgreSQL.</small></div>
+        <div className="empty-quote"><Car size={30} /><p>Select a route and vehicle to reveal an instant fare.</p><small>{vehicle?.name || "Fleet"} fares are calculated from the selected journey distance.</small></div>
       )}
     </div>
   );
@@ -856,9 +856,9 @@ function AdminDashboard({ refreshPublicConfig, onToast }) {
 
   async function saveConfig() {
     try {
-      await api.put("/api/admin/config", config, true);
+      await api.put("/api/admin/config", { ...config, settings: { ...config.settings, pricingMode: "slab" } }, true);
       await refreshPublicConfig();
-      onToast("Fleet and pricing saved to PostgreSQL.");
+      onToast("Vehicle fares saved.");
     } catch (error) {
       onToast(error.message);
     }
@@ -872,6 +872,8 @@ function AdminDashboard({ refreshPublicConfig, onToast }) {
     setConfig((current) => ({ ...current, vehicles: current.vehicles.map((vehicle) => vehicle.id === vehicleId ? { ...vehicle, prices: { ...vehicle.prices, [slabId]: Number(price) } } : vehicle) }));
   }
 
+  const currency = config.company.currency || "GBP";
+
   return (
     <section className="admin-page">
       <div className="metrics">
@@ -880,17 +882,31 @@ function AdminDashboard({ refreshPublicConfig, onToast }) {
         <Metric label="Active fleet" value={dashboard.activeVehicles} icon={<Car />} />
       </div>
       <div className="admin-panel">
-        <div className="panel-title"><Settings size={20} /><h2>Fleet pricing matrix</h2><button className="action-button small" onClick={saveConfig}><Save size={18} /> Save</button></div>
+        <div className="panel-title">
+          <Settings size={20} />
+          <div>
+            <h2>Vehicle fare matrix</h2>
+            <p>Edit the fixed fare for each vehicle and mileage band. Customer quotes use these values plus configured extras.</p>
+          </div>
+          <button className="action-button small" onClick={saveConfig}><Save size={18} /> Save fares</button>
+        </div>
         <div className="matrix">
           <table>
-            <thead><tr><th>Vehicle</th><th>Category</th><th>Seats</th><th>Bags</th><th>Live</th>{config.slabs.map((slab) => <th key={slab.id}>{slab.label}</th>)}</tr></thead>
+            <thead><tr><th>Vehicle</th><th>Category</th><th>Seats</th><th>Bags</th><th>Live</th>{config.slabs.map((slab) => <th key={slab.id}><span>{slab.label}</span><small>Fixed fare</small></th>)}<th>Action</th></tr></thead>
             <tbody>{config.vehicles.map((vehicle) => <tr key={vehicle.id}>
               <td><input value={vehicle.name} onChange={(event) => updateVehicle(vehicle.id, { name: event.target.value })} /></td>
               <td><input value={vehicle.category} onChange={(event) => updateVehicle(vehicle.id, { category: event.target.value })} /></td>
               <td><input type="number" value={vehicle.capacity} onChange={(event) => updateVehicle(vehicle.id, { capacity: Number(event.target.value) })} /></td>
               <td><input type="number" value={vehicle.luggage} onChange={(event) => updateVehicle(vehicle.id, { luggage: Number(event.target.value) })} /></td>
               <td><input type="checkbox" checked={vehicle.active} onChange={(event) => updateVehicle(vehicle.id, { active: event.target.checked })} /></td>
-              {config.slabs.map((slab) => <td key={slab.id}><input type="number" value={vehicle.prices[slab.id] || 0} onChange={(event) => updatePrice(vehicle.id, slab.id, event.target.value)} /></td>)}
+              {config.slabs.map((slab) => (
+                <td key={slab.id}>
+                  <label className="fare-input">
+                    <span>{currency}</span>
+                    <input type="number" min="0" step="0.01" value={vehicle.prices[slab.id] ?? 0} onChange={(event) => updatePrice(vehicle.id, slab.id, event.target.value)} aria-label={`${vehicle.name} fare for ${slab.label}`} />
+                  </label>
+                </td>
+              ))}
               <td><button className="secondary danger small" type="button" onClick={() => deleteVehicle(vehicle.id)}>Delete</button></td>
             </tr>)}</tbody>
           </table>

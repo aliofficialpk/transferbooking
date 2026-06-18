@@ -66,9 +66,10 @@ router.put("/config", requireAdmin, async (request, response, next) => {
   void client;
   try {
     const payload = configSchema.parse(request.body);
+    const pricingSettings = { ...payload.settings, pricingMode: "slab" };
     await query("UPDATE app_settings SET company = $1::jsonb, pricing = $2::jsonb, updated_at = NOW() WHERE id = 1", [
       JSON.stringify(payload.company),
-      JSON.stringify(payload.settings)
+      JSON.stringify(pricingSettings)
     ]);
 
     for (const vehicle of payload.vehicles) {

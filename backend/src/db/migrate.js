@@ -64,7 +64,7 @@ const defaultCompany = {
 };
 
 const defaultPricing = {
-  pricingMode: "perMile",
+  pricingMode: "slab",
   perMileRates: {
     saloon: 1.99
   },
