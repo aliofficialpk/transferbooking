@@ -66,7 +66,10 @@ const defaultCompany = {
 const defaultPricing = {
   pricingMode: "slab",
   perMileRates: {
-    saloon: 1.99
+    saloon: 1.99,
+    executive: 2.49,
+    "people-carrier": 2.85,
+    mpv: 3.15
   },
   longDistanceThresholdMiles: 100,
   longDistanceRates: {

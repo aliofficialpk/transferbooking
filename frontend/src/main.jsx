@@ -856,7 +856,7 @@ function AdminDashboard({ refreshPublicConfig, onToast }) {
 
   async function saveConfig() {
     try {
-      await api.put("/api/admin/config", { ...config, settings: { ...config.settings, pricingMode: "slab" } }, true);
+      await api.put("/api/admin/config", config, true);
       await refreshPublicConfig();
       onToast("Vehicle fares saved.");
     } catch (error) {
@@ -872,7 +872,25 @@ function AdminDashboard({ refreshPublicConfig, onToast }) {
     setConfig((current) => ({ ...current, vehicles: current.vehicles.map((vehicle) => vehicle.id === vehicleId ? { ...vehicle, prices: { ...vehicle.prices, [slabId]: Number(price) } } : vehicle) }));
   }
 
+  function updateSettings(patch) {
+    setConfig((current) => ({ ...current, settings: { ...current.settings, ...patch } }));
+  }
+
+  function updatePerMileRate(vehicleId, rate) {
+    setConfig((current) => ({
+      ...current,
+      settings: {
+        ...current.settings,
+        perMileRates: {
+          ...(current.settings.perMileRates || {}),
+          [vehicleId]: Number(rate)
+        }
+      }
+    }));
+  }
+
   const currency = config.company.currency || "GBP";
+  const pricingMode = config.settings.pricingMode || "slab";
 
   return (
     <section className="admin-page">
@@ -883,10 +901,44 @@ function AdminDashboard({ refreshPublicConfig, onToast }) {
       </div>
       <div className="admin-panel">
         <div className="panel-title">
+          <WalletCards size={20} />
+          <div>
+            <h2>Pricing method</h2>
+            <p>Choose how customer quotes calculate the base fare. Extras, night surcharge and return-trip rules are added after the base fare.</p>
+          </div>
+          <button className="action-button small" onClick={saveConfig}><Save size={18} /> Save pricing</button>
+        </div>
+        <div className="pricing-mode">
+          <button type="button" className={pricingMode === "slab" ? "selected" : ""} onClick={() => updateSettings({ pricingMode: "slab" })}>
+            <Route size={18} />
+            <span>Fixed mileage bands</span>
+          </button>
+          <button type="button" className={pricingMode === "perMile" ? "selected" : ""} onClick={() => updateSettings({ pricingMode: "perMile" })}>
+            <Gauge size={18} />
+            <span>Per-mile rates</span>
+          </button>
+        </div>
+        <div className="per-mile-grid">
+          {config.vehicles.map((vehicle) => (
+            <article key={vehicle.id}>
+              <div>
+                <strong>{vehicle.name}</strong>
+                <small>{vehicle.category} - {vehicle.capacity} pax / {vehicle.luggage} bags</small>
+              </div>
+              <label className="fare-input">
+                <span>{currency}/mi</span>
+                <input type="number" min="0" step="0.01" value={config.settings.perMileRates?.[vehicle.id] ?? 0} onChange={(event) => updatePerMileRate(vehicle.id, event.target.value)} aria-label={`${vehicle.name} per mile rate`} />
+              </label>
+            </article>
+          ))}
+        </div>
+      </div>
+      <div className="admin-panel">
+        <div className="panel-title">
           <Settings size={20} />
           <div>
             <h2>Vehicle fare matrix</h2>
-            <p>Edit the fixed fare for each vehicle and mileage band. Customer quotes use these values plus configured extras.</p>
+            <p>Edit the fixed fare for each vehicle and mileage band. These values are used when the pricing method is set to fixed mileage bands.</p>
           </div>
           <button className="action-button small" onClick={saveConfig}><Save size={18} /> Save fares</button>
         </div>

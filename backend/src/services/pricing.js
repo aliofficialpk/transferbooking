@@ -23,10 +23,20 @@ export function calculateQuote({ config, vehicleId, distanceMiles, dateTime, ext
 
   const settings = config.settings;
   let basePrice = 0;
-  const slab = findSlab(config.slabs, milesValue);
-  if (!slab) throw statusError("Distance is outside the configured pricing bands.", 422);
-  basePrice = Number(vehicle.prices[slab.id] || 0);
-  if (!basePrice) throw statusError("Selected vehicle has no fare for this mileage band.", 422);
+  let baseRate = 0;
+  let slab = null;
+
+  if (settings.pricingMode === "perMile") {
+    const perMileRates = settings.perMileRates || {};
+    baseRate = Number(perMileRates[vehicle.id] || 0);
+    if (!baseRate) throw statusError("Selected vehicle has no per-mile fare configured.", 422);
+    basePrice = money(baseRate * milesValue);
+  } else {
+    slab = findSlab(config.slabs, milesValue);
+    if (!slab) throw statusError("Distance is outside the configured pricing bands.", 422);
+    basePrice = Number(vehicle.prices[slab.id] || 0);
+    if (!basePrice) throw statusError("Selected vehicle has no fare for this mileage band.", 422);
+  }
 
   const stopCount = (extraStops || []).filter(Boolean).length;
   const extraStopTotal =
@@ -51,6 +61,7 @@ export function calculateQuote({ config, vehicleId, distanceMiles, dateTime, ext
     currency: config.company.currency,
     breakdown: {
       basePrice,
+      baseRate: baseRate || undefined,
       extraStopTotal,
       meetAndGreetTotal,
       childSeatTotal,
