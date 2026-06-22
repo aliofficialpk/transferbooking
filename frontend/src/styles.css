@@ -448,6 +448,43 @@ button {
   background: #edf6f3;
 }
 
+.account-band {
+  background: #ffffff;
+}
+
+.detail-grid,
+.contact-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 18px;
+}
+
+.detail-grid article,
+.contact-grid article {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(23, 32, 38, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 18px 60px rgba(21, 25, 31, 0.08);
+  padding: 20px;
+}
+
+.contact-line {
+  border-bottom: 1px solid rgba(23, 32, 38, 0.08);
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 14px 0;
+}
+
+.contact-line strong {
+  color: #0f766e;
+}
+
+.contact-line span {
+  color: #4d5960;
+}
+
 .lookup-grid {
   align-items: start;
   display: grid;
@@ -717,6 +754,22 @@ select:focus {
 
 .toggle.checked svg:last-child {
   opacity: 1;
+}
+
+.terms-check {
+  align-items: center;
+  background: #edf6f3;
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto 1fr;
+  padding: 12px;
+}
+
+.terms-check input {
+  min-height: 20px;
+  width: 20px;
 }
 
 .quote-dock {
@@ -1007,6 +1060,15 @@ th {
   margin-top: 4px;
 }
 
+.discount-panel {
+  border-top: 1px solid rgba(23, 32, 38, 0.08);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(220px, 1fr) minmax(160px, 0.5fr);
+  margin-top: 18px;
+  padding-top: 18px;
+}
+
 .search-box {
   align-items: center;
   display: grid;
@@ -1171,6 +1233,8 @@ dd {
   .faq-grid,
   .airport-content,
   .lookup-grid,
+  .detail-grid,
+  .contact-grid,
   .booking-grid,
   .compact-grid,
   .vehicle-picker,
@@ -1179,6 +1243,7 @@ dd {
   .pricing-mode,
   .per-mile-grid,
   .per-mile-grid article,
+  .discount-panel,
   .section-head,
   .jobs-header {
     grid-template-columns: 1fr;

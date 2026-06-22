@@ -52,7 +52,11 @@ export function calculateQuote({ config, vehicleId, distanceMiles, dateTime, ext
   const returnTripTotal = serviceOptions.returnTrip
     ? money(outboundTotal * (1 - Number(settings.returnTripDiscountPercent || 0) / 100))
     : 0;
-  const total = money(outboundTotal + returnTripTotal);
+  const subtotal = money(outboundTotal + returnTripTotal);
+  const discountTotal = settings.discountEnabled
+    ? money(subtotal * (Number(settings.discountPercent || 0) / 100))
+    : 0;
+  const total = money(Math.max(subtotal - discountTotal, 0));
 
   return {
     vehicle,
@@ -67,6 +71,7 @@ export function calculateQuote({ config, vehicleId, distanceMiles, dateTime, ext
       childSeatTotal,
       nightSurcharge,
       returnTripTotal,
+      discountTotal,
       total
     }
   };

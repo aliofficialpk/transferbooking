@@ -14,6 +14,7 @@ import {
   FileText,
   Gauge,
   HelpCircle,
+  Landmark,
   Lock,
   MapPin,
   Moon,
@@ -23,6 +24,7 @@ import {
   Route,
   Save,
   Search,
+  Ship,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -146,6 +148,10 @@ function App() {
       {route === "book" && <BookingPage config={config} onInvoice={handleBookingComplete} onToast={setToast} initialVehicleId={selectedVehicleId} />}
       {route === "my-booking" && <MyBookingPage company={config.company} onToast={setToast} justBookedInfo={justBookedInfo} onBookingViewed={() => setJustBookedInfo(null)} />}
       {route === "fleet" && <FleetPage config={config} setRoute={setRoute} onSelectVehicle={bookVehicle} selectedVehicleId={selectedVehicleId} />}
+      {route === "about" && <AboutPage company={config.company} setRoute={setRoute} />}
+      {route === "services" && <ServicesPage setRoute={setRoute} />}
+      {route === "contact" && <ContactPage company={config.company} setRoute={setRoute} />}
+      {route === "terms" && <TermsPage company={config.company} />}
       {route === "how" && <HowPage />}
       {route === "staff-login" && <AdminLogin setRoute={setRoute} onToast={setToast} />}
       {route === "admin" && <AdminDashboard publicConfig={config} refreshPublicConfig={refreshConfig} onToast={setToast} />}
@@ -184,6 +190,9 @@ function Header({ company, route, setRoute }) {
           ["book", "Book"],
           ["my-booking", "My Booking"],
           ["fleet", "Fleet"],
+          ["services", "Services"],
+          ["about", "About"],
+          ["contact", "Contact"],
           ["how", "Help"]
         ].map(([id, label]) => (
           <button key={id} className={route === id ? "active" : ""} onClick={() => setRoute(id)}>{label}</button>
@@ -217,6 +226,7 @@ function HomePage({ config, setRoute, onSelectVehicle }) {
       <ServiceHighlights />
       <FleetPreview config={config} setRoute={setRoute} onSelectVehicle={onSelectVehicle} />
       <AirportCoverage />
+      <BusinessAccountBand setRoute={setRoute} />
       <FaqSection />
     </>
   );
@@ -503,10 +513,11 @@ function BookingDetails({ booking, company, onViewInvoice, onCancelBooking }) {
           "Base fare": booking.quote.basePrice,
           "Extra stops": booking.quote.extraStopTotal,
           "Meet & greet": booking.quote.meetAndGreetTotal,
-          "Child seats": booking.quote.childSeatTotal,
-          "Night surcharge": booking.quote.nightSurcharge,
-          "Return trip": booking.quote.returnTripTotal
-        }).map(([label, value]) => <React.Fragment key={label}><span>{label}</span><strong>{money(value, booking.currency)}</strong></React.Fragment>)}
+              "Child seats": booking.quote.childSeatTotal,
+              "Night surcharge": booking.quote.nightSurcharge,
+              "Return trip": booking.quote.returnTripTotal,
+              "Discount": -Number(booking.quote.discountTotal || 0)
+            }).map(([label, value]) => <React.Fragment key={label}><span>{label}</span><strong>{money(value, booking.currency)}</strong></React.Fragment>)}
         <span>Total</span><strong>{money(booking.quote.total, booking.currency)}</strong>
       </div>
       <div className="booking-actions">
@@ -567,7 +578,7 @@ function ServiceHighlights() {
 }
 
 function AirportCoverage() {
-  const airports = ["Heathrow", "Gatwick", "Luton", "Stansted", "London City", "Southampton"];
+  const airports = UK_AIRPORTS;
   return (
     <section className="content-band airport-band">
       <div className="section-head">
@@ -579,6 +590,93 @@ function AirportCoverage() {
       </div>
       <div className="airport-list">
         {airports.map((airport) => <span key={airport}><Plane size={16} /> {airport}</span>)}
+      </div>
+    </section>
+  );
+}
+
+function BusinessAccountBand({ setRoute }) {
+  return (
+    <section className="content-band account-band">
+      <div className="section-head">
+        <div>
+          <p className="eyebrow">Accounts and repeat travel</p>
+          <h2>Corporate, personal and family travel managed in one place.</h2>
+          <p>For regular travellers, executive assistants and business accounts, bookings can include flight monitoring, meet-and-greet instructions, extra passengers, multiple drop-offs and invoice-ready records.</p>
+        </div>
+        <button className="secondary" onClick={() => setRoute("services")}>View services</button>
+      </div>
+      <div className="service-grid">
+        <GuideCard icon={<Briefcase size={20} />} title="Business travel" text="Executive transfers for meetings, hotels, roadshows and airport collections." />
+        <GuideCard icon={<Landmark size={20} />} title="Personal accounts" text="Keep repeat journey details consistent with booking references and invoice history." />
+        <GuideCard icon={<Ship size={20} />} title="Seaport transfers" text="Private transfers for cruise terminals, ports and long-distance connections." />
+        <GuideCard icon={<Plane size={20} />} title="Flight monitoring" text="Flight number capture is built into the booking flow for arrival planning." />
+      </div>
+    </section>
+  );
+}
+
+function AboutPage({ company, setRoute }) {
+  return (
+    <section className="page">
+      <PageTitle label="About us" title="Professional chauffeur travel with punctuality, comfort and clear fares." text={`${company.name} provides pre-booked private transfers for airports, business travel, seaports, events and long-distance journeys.`} />
+      <div className="detail-grid">
+        <GuideCard icon={<ShieldCheck size={20} />} title="Reliable service" text="Every booking captures route, vehicle, passenger, flight and invoice details so the journey is clear from the start." />
+        <GuideCard icon={<Users size={20} />} title="Professional chauffeurs" text="A chauffeur-style experience focused on discretion, presentation, luggage assistance and punctual collection." />
+        <GuideCard icon={<Car size={20} />} title="Executive fleet" text="Fleet options support solo travellers, families, business passengers and groups with luggage." />
+        <GuideCard icon={<WalletCards size={20} />} title="Transparent pricing" text="Admins can manage fixed band fares, per-mile rates, extras and discounts without code changes." />
+      </div>
+      <button className="action-button narrow" onClick={() => setRoute("book")}><CalendarClock size={18} /> Book online</button>
+    </section>
+  );
+}
+
+function ServicesPage({ setRoute }) {
+  const services = [
+    ["Executive airport transfers", Plane, "Door-to-door transfers for arrivals and departures, with flight number capture, meet-and-greet options and luggage-aware vehicle selection."],
+    ["Executive chauffeur hire", Car, "Private chauffeur travel for meetings, events, hotels, roadshows and special occasions."],
+    ["Business and corporate travel", Briefcase, "Professional booking records, status management and invoices for repeat business journeys."],
+    ["Seaport transfers", Ship, "Pre-booked private transfers to ports, cruise terminals and onward long-distance destinations."],
+    ["Flight monitoring", Gauge, "Flight details can be stored with each booking so operators have the arrival information ready."],
+    ["Business and personal accounts", Landmark, "Support for repeat customers who need consistent journey details and invoice-ready booking history."]
+  ];
+  return (
+    <section className="page">
+      <PageTitle label="Our services" title="Airport transfers, chauffeur hire and managed travel services." text="A complete public chauffeur website should explain what customers can book before asking them to fill in a form. These service pages mirror the expected chauffeur-hire structure." />
+      <div className="detail-grid">
+        {services.map(([title, Icon, text]) => <GuideCard key={title} icon={<Icon size={20} />} title={title} text={text} />)}
+      </div>
+      <AirportCoverage />
+      <button className="action-button narrow" onClick={() => setRoute("book")}><CalendarClock size={18} /> Start booking</button>
+    </section>
+  );
+}
+
+function ContactPage({ company, setRoute }) {
+  return (
+    <section className="page">
+      <PageTitle label="Contact" title="Need help with a booking or account?" text="Use the booking form for instant quotes, or contact the office for account travel, amendments and special journey requirements." />
+      <div className="contact-grid">
+        <article><PhoneLine label="Phone" value={company.phone} /><PhoneLine label="Email" value={company.email} /><PhoneLine label="Address" value={company.address} /></article>
+        <article><h2>Booking support</h2><p>Include your booking reference, passenger email, flight number and route when asking for amendments.</p><button className="action-button" onClick={() => setRoute("my-booking")}><Search size={18} /> Find booking</button></article>
+      </div>
+    </section>
+  );
+}
+
+function PhoneLine({ label, value }) {
+  return <p className="contact-line"><strong>{label}</strong><span>{value}</span></p>;
+}
+
+function TermsPage({ company }) {
+  return (
+    <section className="page">
+      <PageTitle label="Terms" title="Booking terms and passenger guidance." text={`These terms help prepare ${company.name} for public use and give customers clear expectations before travel.`} />
+      <div className="detail-grid">
+        <GuideCard icon={<CalendarClock size={20} />} title="Booking confirmation" text="A booking is confirmed once the customer receives a reference and invoice details. Customers should check route, time, passenger and contact details." />
+        <GuideCard icon={<Plane size={20} />} title="Flight delays" text="Passengers should provide accurate flight numbers. Operators can use flight details to plan airport arrivals and pickup timing." />
+        <GuideCard icon={<WalletCards size={20} />} title="Pricing and discounts" text="Quotes include the selected vehicle base fare, extra stops, meet-and-greet, child seats, night surcharge, return trip and any admin discount." />
+        <GuideCard icon={<HelpCircle size={20} />} title="Changes and cancellation" text="Customers can view or cancel bookings from My Booking. Amendments should be requested with the booking reference and passenger email." />
       </div>
     </section>
   );
@@ -618,18 +716,31 @@ function HowPage() {
   );
 }
 
-const locationSuggestions = [
-  "Heathrow Terminal 5",
-  "Gatwick Airport",
-  "London City Airport",
-  "Stansted Airport",
-  "Luton Airport",
-  "Mayfair, London",
-  "King's Cross Station",
-  "Paddington Station",
-  "Canary Wharf",
-  "Westminster, London"
+const UK_AIRPORTS = [
+  "Heathrow Airport", "Heathrow Terminal 2", "Heathrow Terminal 3", "Heathrow Terminal 4", "Heathrow Terminal 5",
+  "Gatwick Airport", "Gatwick North Terminal", "Gatwick South Terminal", "Luton Airport", "Stansted Airport",
+  "London City Airport", "Southampton Airport", "Bristol Airport", "Birmingham Airport", "Manchester Airport",
+  "East Midlands Airport", "Leeds Bradford Airport", "Liverpool John Lennon Airport", "Newcastle Airport",
+  "Cardiff Airport", "Exeter Airport", "Bournemouth Airport", "Norwich Airport", "Glasgow Airport",
+  "Edinburgh Airport", "Aberdeen Airport", "Inverness Airport", "Belfast International Airport", "George Best Belfast City Airport"
 ];
+
+const UK_RAIL_AND_PORTS = [
+  "King's Cross Station", "St Pancras International", "Paddington Station", "Victoria Station", "Waterloo Station",
+  "Liverpool Street Station", "Euston Station", "Marylebone Station", "Clapham Junction", "Reading Station",
+  "Bristol Temple Meads", "Bath Spa Station", "Southampton Cruise Terminal", "Portsmouth International Port",
+  "Dover Cruise Terminal", "Harwich International Port", "Tilbury Cruise Terminal"
+];
+
+const UK_CITY_LOCATIONS = [
+  "Mayfair, London", "Westminster, London", "Canary Wharf", "Kensington, London", "Chelsea, London",
+  "Knightsbridge, London", "City of London", "Bristol City Centre", "Clifton, Bristol", "Bath",
+  "Oxford", "Cambridge", "Reading", "Swindon", "Cheltenham", "Gloucester", "Cardiff", "Newport",
+  "Birmingham City Centre", "Manchester City Centre", "Leeds", "Liverpool", "Southampton", "Portsmouth",
+  "Exeter", "Plymouth", "Bournemouth", "Brighton", "Windsor", "Ascot"
+];
+
+const locationSuggestions = [...UK_AIRPORTS, ...UK_RAIL_AND_PORTS, ...UK_CITY_LOCATIONS];
 
 function BookingPage({ config, onInvoice, onToast, initialVehicleId }) {
   const [form, setForm] = useState({
@@ -639,12 +750,14 @@ function BookingPage({ config, onInvoice, onToast, initialVehicleId }) {
     vehicleId: initialVehicleId || config.vehicles[0]?.id || "",
     dateTime: "",
     manualDistanceMiles: "",
+    serviceType: "Airport transfer",
     passengers: 1,
     luggage: 1,
     flightNumber: "",
     notes: "",
     serviceOptions: { meetAndGreet: true, returnTrip: false, childSeats: 0 },
-    customer: { name: "", email: "", phone: "" }
+    customer: { name: "", email: "", phone: "" },
+    acceptedTerms: false
   });
   const [quote, setQuote] = useState(null);
   const selectedVehicle = config.vehicles.find((vehicle) => vehicle.id === form.vehicleId);
@@ -685,7 +798,8 @@ function BookingPage({ config, onInvoice, onToast, initialVehicleId }) {
     }
 
     try {
-      const booking = await api.post("/api/public/bookings", { ...form, distanceMiles: Number(quote.distanceMiles) });
+      const bookingNotes = `Service: ${form.serviceType}${form.notes ? ` | ${form.notes}` : ""}`;
+      const booking = await api.post("/api/public/bookings", { ...form, notes: bookingNotes, distanceMiles: Number(quote.distanceMiles) });
       onInvoice(booking.id, form.customer.email);
       onToast(`Booking confirmed: ${booking.id}`);
     } catch (error) {
@@ -723,6 +837,7 @@ function BookingPage({ config, onInvoice, onToast, initialVehicleId }) {
 
         <StepTitle icon={<CalendarClock size={19} />} title="Details" label="Step 3" />
         <div className="compact-grid">
+          <label>Service type<select value={form.serviceType} onChange={(event) => update("serviceType", event.target.value)}><option>Airport transfer</option><option>Executive chauffeur hire</option><option>Business travel</option><option>Seaport transfer</option><option>Event transfer</option><option>Long-distance transfer</option></select></label>
           <label>Date and time<input type="datetime-local" value={form.dateTime} onChange={(event) => update("dateTime", event.target.value)} required /></label>
           <Field label="Distance miles" type="number" step="0.1" value={form.manualDistanceMiles} onChange={(value) => update("manualDistanceMiles", value)} placeholder="Manual until Maps key is set" />
           <Field label="Flight number" value={form.flightNumber} onChange={(value) => update("flightNumber", value)} placeholder="BA117" />
@@ -741,6 +856,7 @@ function BookingPage({ config, onInvoice, onToast, initialVehicleId }) {
           <Field label="Phone" value={form.customer.phone} onChange={(value) => update("customer", { ...form.customer, phone: value })} required />
         </div>
         <label>Driver notes<textarea value={form.notes} onChange={(event) => update("notes", event.target.value)} placeholder="Name board, pickup instructions, mobility needs..." /></label>
+        <label className="terms-check"><input type="checkbox" checked={form.acceptedTerms} onChange={(event) => update("acceptedTerms", event.target.checked)} required /> I confirm the journey details are correct and accept the booking terms.</label>
         <button className="action-button" type="submit"><Banknote size={18} /> Calculate quote</button>
       </form>
       <aside className="quote-dock">
@@ -764,7 +880,8 @@ function QuotePanel({ quote, currency, vehicle, onBook }) {
               "Meet & greet": quote.breakdown.meetAndGreetTotal,
               "Child seats": quote.breakdown.childSeatTotal,
               Night: quote.breakdown.nightSurcharge,
-              Return: quote.breakdown.returnTripTotal
+              Return: quote.breakdown.returnTripTotal,
+              Discount: -Number(quote.breakdown.discountTotal || 0)
             }).map(([label, value]) => <React.Fragment key={label}><span>{label}</span><strong>{money(value, quote.currency)}</strong></React.Fragment>)}
           </div>
           <div className="quote-route"><Route size={18} /><span>{quote.distanceMiles} miles estimated journey distance</span></div>
@@ -932,6 +1049,11 @@ function AdminDashboard({ refreshPublicConfig, onToast }) {
             </article>
           ))}
         </div>
+        <div className="discount-panel">
+          <Toggle checked={Boolean(config.settings.discountEnabled)} onChange={(checked) => updateSettings({ discountEnabled: checked })} label="Apply booking discount" />
+          <Field label="Discount label" value={config.settings.discountLabel || ""} onChange={(value) => updateSettings({ discountLabel: value })} placeholder="Promotional discount" />
+          <Field label="Discount percent" type="number" min="0" max="100" step="0.1" value={config.settings.discountPercent || 0} onChange={(value) => updateSettings({ discountPercent: Number(value) })} />
+        </div>
       </div>
       <div className="admin-panel">
         <div className="panel-title">
@@ -1035,15 +1157,15 @@ function InvoiceModal({ bookingId, company, onClose }) {
           <dt>Flight</dt><dd>{booking.flightNumber || "Not supplied"}</dd>
           <dt>Date</dt><dd>{new Date(booking.dateTime).toLocaleString()}</dd>
         </dl>
-        <table><tbody>{Object.entries({ "Base fare": booking.quote.basePrice, "Extra drop-offs": booking.quote.extraStopTotal, "Meet & greet": booking.quote.meetAndGreetTotal, "Child seats": booking.quote.childSeatTotal, "Night surcharge": booking.quote.nightSurcharge, "Return trip": booking.quote.returnTripTotal }).map(([label, value]) => <tr key={label}><td>{label}</td><td>{money(value, booking.currency)}</td></tr>)}<tr className="total"><td>Total</td><td>{money(booking.quote.total, booking.currency)}</td></tr></tbody></table>
+        <table><tbody>{Object.entries({ "Base fare": booking.quote.basePrice, "Extra drop-offs": booking.quote.extraStopTotal, "Meet & greet": booking.quote.meetAndGreetTotal, "Child seats": booking.quote.childSeatTotal, "Night surcharge": booking.quote.nightSurcharge, "Return trip": booking.quote.returnTripTotal, "Discount": -Number(booking.quote.discountTotal || 0) }).map(([label, value]) => <tr key={label}><td>{label}</td><td>{money(value, booking.currency)}</td></tr>)}<tr className="total"><td>Total</td><td>{money(booking.quote.total, booking.currency)}</td></tr></tbody></table>
         <div className="invoice-actions"><button className="secondary" onClick={() => window.print()}><Printer size={18} /> Print</button><button className="secondary" onClick={() => window.print()}><Download size={18} /> PDF</button><button className="action-button" onClick={onClose}><Check size={18} /> View in My Booking</button></div>
       </div>
     </div>
   );
 }
 
-function ExtraStops({ stops, onChange }) {
-  return <div className="stops"><div className="row-title"><span>Extra drop-offs</span><button type="button" className="icon-button" onClick={() => onChange([...stops, ""])}><Plus size={18} /></button></div>{stops.map((stop, index) => <div className="stop-row" key={index}><input value={stop} onChange={(event) => onChange(stops.map((item, i) => i === index ? event.target.value : item))} placeholder={`Stop ${index + 1}`} /><button type="button" className="icon-button danger" onClick={() => onChange(stops.filter((_, i) => i !== index))}><Trash2 size={18} /></button></div>)}</div>;
+function ExtraStops({ stops, onChange, list }) {
+  return <div className="stops"><div className="row-title"><span>Extra drop-offs</span><button type="button" className="icon-button" onClick={() => onChange([...stops, ""])}><Plus size={18} /></button></div>{stops.map((stop, index) => <div className="stop-row" key={index}><input value={stop} list={list} onChange={(event) => onChange(stops.map((item, i) => i === index ? event.target.value : item))} placeholder={`Stop ${index + 1}`} /><button type="button" className="icon-button danger" onClick={() => onChange(stops.filter((_, i) => i !== index))}><Trash2 size={18} /></button></div>)}</div>;
 }
 
 function PageTitle({ label, title, text }) {

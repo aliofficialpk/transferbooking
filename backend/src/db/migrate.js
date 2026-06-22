@@ -85,7 +85,10 @@ const defaultPricing = {
   nightEnd: "06:00",
   meetAndGreetAmount: 20,
   childSeatAmount: 8,
-  returnTripDiscountPercent: 8
+  returnTripDiscountPercent: 8,
+  discountEnabled: false,
+  discountPercent: 0,
+  discountLabel: "Promotional discount"
 };
 
 export async function migrate() {
