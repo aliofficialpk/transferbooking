@@ -749,7 +749,6 @@ function BookingPage({ config, onInvoice, onToast, initialVehicleId }) {
     extraStops: [],
     vehicleId: initialVehicleId || config.vehicles[0]?.id || "",
     dateTime: "",
-    manualDistanceMiles: "",
     serviceType: "Airport transfer",
     passengers: 1,
     luggage: 1,
@@ -785,7 +784,7 @@ function BookingPage({ config, onInvoice, onToast, initialVehicleId }) {
     event.preventDefault();
     try {
       setQuote(await api.post("/api/public/quote", form));
-      onToast("Quote calculated from live database pricing.");
+      onToast("Distance and fare calculated automatically.");
     } catch (error) {
       onToast(error.message);
     }
@@ -799,7 +798,7 @@ function BookingPage({ config, onInvoice, onToast, initialVehicleId }) {
 
     try {
       const bookingNotes = `Service: ${form.serviceType}${form.notes ? ` | ${form.notes}` : ""}`;
-      const booking = await api.post("/api/public/bookings", { ...form, notes: bookingNotes, distanceMiles: Number(quote.distanceMiles) });
+      const booking = await api.post("/api/public/bookings", { ...form, notes: bookingNotes });
       onInvoice(booking.id, form.customer.email);
       onToast(`Booking confirmed: ${booking.id}`);
     } catch (error) {
@@ -811,12 +810,9 @@ function BookingPage({ config, onInvoice, onToast, initialVehicleId }) {
     <section className="booking-grid page-tight">
       <form className="booking-card primary-card" onSubmit={getQuote}>
         <StepTitle icon={<MapPin size={19} />} title="Journey" label="Step 1" />
-        <Field label="Pickup" value={form.pickup} onChange={(value) => update("pickup", value)} placeholder="Heathrow Terminal 5" required list="locations" />
-        <Field label="Drop-off" value={form.dropoff} onChange={(value) => update("dropoff", value)} placeholder="Mayfair, London" required list="locations" />
-        <ExtraStops stops={form.extraStops} onChange={(extraStops) => update("extraStops", extraStops)} list="locations" />
-        <datalist id="locations">
-          {locationSuggestions.map((location) => <option key={location} value={location} />)}
-        </datalist>
+        <LocationField label="Pickup" value={form.pickup} onChange={(value) => update("pickup", value)} placeholder="Start typing airport, postcode, hotel or street" required />
+        <LocationField label="Drop-off" value={form.dropoff} onChange={(value) => update("dropoff", value)} placeholder="Destination address, town or postcode" required />
+        <ExtraStops stops={form.extraStops} onChange={(extraStops) => update("extraStops", extraStops)} />
 
         <StepTitle icon={<Car size={19} />} title="Vehicle" label="Step 2" />
         <label>
@@ -839,7 +835,6 @@ function BookingPage({ config, onInvoice, onToast, initialVehicleId }) {
         <div className="compact-grid">
           <label>Service type<select value={form.serviceType} onChange={(event) => update("serviceType", event.target.value)}><option>Airport transfer</option><option>Executive chauffeur hire</option><option>Business travel</option><option>Seaport transfer</option><option>Event transfer</option><option>Long-distance transfer</option></select></label>
           <label>Date and time<input type="datetime-local" value={form.dateTime} onChange={(event) => update("dateTime", event.target.value)} required /></label>
-          <Field label="Distance miles" type="number" step="0.1" value={form.manualDistanceMiles} onChange={(value) => update("manualDistanceMiles", value)} placeholder="Manual until Maps key is set" />
           <Field label="Flight number" value={form.flightNumber} onChange={(value) => update("flightNumber", value)} placeholder="BA117" />
           <Field label="Passengers" type="number" min="1" value={form.passengers} onChange={(value) => update("passengers", Number(value))} />
           <Field label="Luggage" type="number" min="0" value={form.luggage} onChange={(value) => update("luggage", Number(value))} />
@@ -1164,8 +1159,18 @@ function InvoiceModal({ bookingId, company, onClose }) {
   );
 }
 
-function ExtraStops({ stops, onChange, list }) {
-  return <div className="stops"><div className="row-title"><span>Extra drop-offs</span><button type="button" className="icon-button" onClick={() => onChange([...stops, ""])}><Plus size={18} /></button></div>{stops.map((stop, index) => <div className="stop-row" key={index}><input value={stop} list={list} onChange={(event) => onChange(stops.map((item, i) => i === index ? event.target.value : item))} placeholder={`Stop ${index + 1}`} /><button type="button" className="icon-button danger" onClick={() => onChange(stops.filter((_, i) => i !== index))}><Trash2 size={18} /></button></div>)}</div>;
+function ExtraStops({ stops, onChange }) {
+  return (
+    <div className="stops">
+      <div className="row-title"><span>Extra drop-offs</span><button type="button" className="icon-button" onClick={() => onChange([...stops, ""])}><Plus size={18} /></button></div>
+      {stops.map((stop, index) => (
+        <div className="stop-row" key={index}>
+          <LocationField label={`Stop ${index + 1}`} value={stop} onChange={(value) => onChange(stops.map((item, i) => i === index ? value : item))} placeholder="Search stop address" compact />
+          <button type="button" className="icon-button danger" onClick={() => onChange(stops.filter((_, i) => i !== index))}><Trash2 size={18} /></button>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function PageTitle({ label, title, text }) {
@@ -1178,6 +1183,69 @@ function StepTitle({ icon, label, title }) {
 
 function Field({ label, value, onChange, type = "text", required = false, placeholder = "", ...props }) {
   return <label>{label}<input type={type} value={value} required={required} placeholder={placeholder} list={props.list} onChange={(event) => onChange(event.target.value)} {...props} /></label>;
+}
+
+function LocationField({ label, value, onChange, placeholder, required = false, compact = false }) {
+  const [suggestions, setSuggestions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const query = String(value || "").trim();
+    if (query.length < 2) {
+      setSuggestions([]);
+      setOpen(false);
+      return;
+    }
+    let active = true;
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const results = await api.get(`/api/public/locations?query=${encodeURIComponent(query)}`);
+        if (active) {
+          setSuggestions(results);
+          setOpen(results.length > 0);
+        }
+      } catch {
+        if (active) {
+          setSuggestions([]);
+          setOpen(false);
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    }, 260);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [value]);
+
+  function selectLocation(location) {
+    onChange(location.label);
+    setSuggestions([]);
+    setOpen(false);
+  }
+
+  return (
+    <label className={`location-field ${compact ? "compact-location" : ""}`}>
+      {label}
+      <span className="location-input-wrap">
+        <input type="text" value={value} required={required} placeholder={placeholder} autoComplete="off" onFocus={() => suggestions.length && setOpen(true)} onChange={(event) => onChange(event.target.value)} />
+        {loading && <small>Searching...</small>}
+      </span>
+      {open && (
+        <div className="location-suggestions">
+          {suggestions.map((location) => (
+            <button key={location.id} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => selectLocation(location)}>
+              <MapPin size={16} />
+              <span>{location.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </label>
+  );
 }
 
 function Toggle({ checked, onChange, label }) {

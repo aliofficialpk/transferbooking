@@ -3,7 +3,7 @@ import { nanoid } from "nanoid";
 import { z } from "zod";
 import { query } from "../db/pool.js";
 import { getSystemConfig } from "../services/config.js";
-import { calculateQuote, calculateRouteDistance } from "../services/pricing.js";
+import { calculateQuote, calculateRouteDistance, searchLocations } from "../services/pricing.js";
 
 const router = Router();
 
@@ -13,7 +13,6 @@ const quoteSchema = z.object({
   extraStops: z.array(z.string()).default([]),
   vehicleId: z.string().min(1),
   dateTime: z.string().min(1),
-  manualDistanceMiles: z.union([z.string(), z.number()]).optional(),
   serviceOptions: z.object({
     meetAndGreet: z.boolean().optional(),
     childSeats: z.coerce.number().min(0).optional(),
@@ -22,7 +21,7 @@ const quoteSchema = z.object({
 });
 
 const bookingSchema = quoteSchema.extend({
-  distanceMiles: z.coerce.number().positive(),
+  distanceMiles: z.coerce.number().positive().optional(),
   customer: z.object({
     name: z.string().min(2),
     email: z.string().email(),
@@ -42,6 +41,18 @@ router.get("/config", async (_request, response, next) => {
   }
 });
 
+router.get("/locations", async (request, response, next) => {
+  try {
+    const { query: search } = z.object({ query: z.string().min(2) }).parse(request.query);
+    response.json(await searchLocations({
+      query: search,
+      googleApiKey: process.env.GOOGLE_MAPS_API_KEY
+    }));
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post("/quote", async (request, response, next) => {
   try {
     const payload = quoteSchema.parse(request.body);
@@ -52,14 +63,13 @@ router.post("/quote", async (request, response, next) => {
       extraStops: payload.extraStops,
       googleApiKey: process.env.GOOGLE_MAPS_API_KEY
     });
-    const distanceMiles = routeDistance ?? Number(payload.manualDistanceMiles);
-    if (!distanceMiles || distanceMiles <= 0) {
-      response.status(422).json({ error: "Enter mileage or configure GOOGLE_MAPS_API_KEY on the backend." });
+    if (!routeDistance || routeDistance <= 0) {
+      response.status(422).json({ error: "We could not calculate the journey distance. Please select suggested UK locations or configure GOOGLE_MAPS_API_KEY." });
       return;
     }
     response.json({
-      ...calculateQuote({ config, ...payload, distanceMiles }),
-      distanceSource: routeDistance ? "google-directions" : "manual"
+      ...calculateQuote({ config, ...payload, distanceMiles: routeDistance }),
+      distanceSource: process.env.GOOGLE_MAPS_API_KEY ? "google-directions" : "osm-routing"
     });
   } catch (error) {
     next(error);
@@ -70,7 +80,13 @@ router.post("/bookings", async (request, response, next) => {
   try {
     const payload = bookingSchema.parse(request.body);
     const config = await getSystemConfig();
-    const quote = calculateQuote({ config, ...payload, distanceMiles: payload.distanceMiles });
+    const routeDistance = await calculateRouteDistance({
+      pickup: payload.pickup,
+      dropoff: payload.dropoff,
+      extraStops: payload.extraStops,
+      googleApiKey: process.env.GOOGLE_MAPS_API_KEY
+    });
+    const quote = calculateQuote({ config, ...payload, distanceMiles: routeDistance });
     const bookingId = nanoid(10).toUpperCase();
     const invoiceId = nanoid(12).toUpperCase();
     const invoiceNumber = `INV-${new Date().getFullYear()}-${bookingId}`;

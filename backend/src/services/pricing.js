@@ -1,4 +1,12 @@
 const METERS_PER_MILE = 1609.344;
+const UK_BBOX = "-8.65,49.86,1.77,60.86";
+
+export async function searchLocations({ query, googleApiKey, limit = 8 }) {
+  const search = String(query || "").trim();
+  if (search.length < 2) return [];
+  if (googleApiKey) return searchGoogleLocations({ query: search, googleApiKey, limit });
+  return searchPhotonLocations({ query: search, limit });
+}
 
 export function findSlab(slabs, miles) {
   return slabs.find((slab) => miles >= slab.minMiles && miles <= slab.maxMiles) || null;
@@ -78,7 +86,17 @@ export function calculateQuote({ config, vehicleId, distanceMiles, dateTime, ext
 }
 
 export async function calculateRouteDistance({ pickup, dropoff, extraStops = [], googleApiKey }) {
-  if (!googleApiKey) return null;
+  if (googleApiKey) {
+    try {
+      return await calculateGoogleRouteDistance({ pickup, dropoff, extraStops, googleApiKey });
+    } catch (error) {
+      if (process.env.NODE_ENV === "production") throw error;
+    }
+  }
+  return calculateOsmRouteDistance({ pickup, dropoff, extraStops });
+}
+
+async function calculateGoogleRouteDistance({ pickup, dropoff, extraStops = [], googleApiKey }) {
   const waypoints = extraStops.filter(Boolean);
   const waypointParam = waypoints.length ? `&waypoints=${encodeURIComponent(waypoints.join("|"))}` : "";
   const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(pickup)}&destination=${encodeURIComponent(dropoff)}${waypointParam}&key=${googleApiKey}`;
@@ -89,6 +107,79 @@ export async function calculateRouteDistance({ pickup, dropoff, extraStops = [],
   }
   const meters = body.routes[0].legs.reduce((sum, leg) => sum + leg.distance.value, 0);
   return miles(meters / METERS_PER_MILE);
+}
+
+async function calculateOsmRouteDistance({ pickup, dropoff, extraStops = [] }) {
+  const locations = [pickup, ...extraStops.filter(Boolean), dropoff];
+  const points = await Promise.all(locations.map((location) => geocodePhoton(location)));
+  const coordinates = points.map((point) => `${point.lon},${point.lat}`).join(";");
+  const url = `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=false&alternatives=false&steps=false`;
+  const response = await fetch(url, { headers: { "User-Agent": "airport-transfer-booking/1.0" } });
+  const body = await response.json();
+  if (!response.ok || body.code !== "Ok" || !body.routes?.[0]) {
+    throw statusError(body.message || "Route provider could not calculate this journey distance.", 422);
+  }
+  return miles(Number(body.routes[0].distance || 0) / METERS_PER_MILE);
+}
+
+async function searchGoogleLocations({ query, googleApiKey, limit }) {
+  const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&components=country:gb&types=geocode&key=${googleApiKey}`;
+  const response = await fetch(url);
+  const body = await response.json();
+  if (!response.ok || !["OK", "ZERO_RESULTS"].includes(body.status)) {
+    throw statusError(body.error_message || "Location suggestions are unavailable.", 422);
+  }
+  return (body.predictions || []).slice(0, limit).map((item) => ({
+    id: item.place_id,
+    label: item.description,
+    provider: "google"
+  }));
+}
+
+async function searchPhotonLocations({ query, limit }) {
+  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=${limit}&lang=en&bbox=${UK_BBOX}`;
+  const response = await fetch(url, { headers: { "User-Agent": "airport-transfer-booking/1.0" } });
+  const body = await response.json();
+  if (!response.ok) throw statusError("Location suggestions are unavailable.", 422);
+  const seen = new Set();
+  return (body.features || [])
+    .filter((feature) => ["gb", "ie"].includes(String(feature.properties?.countrycode || "").toLowerCase()))
+    .map((feature) => ({
+      id: `${feature.properties?.osm_type || "osm"}-${feature.properties?.osm_id || feature.geometry?.coordinates?.join(",")}`,
+      label: formatPhotonLabel(feature.properties),
+      provider: "osm",
+      coordinates: {
+        lon: feature.geometry?.coordinates?.[0],
+        lat: feature.geometry?.coordinates?.[1]
+      }
+    }))
+    .filter((location) => {
+      const key = location.label.toLowerCase();
+      if (!location.label || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, limit);
+}
+
+async function geocodePhoton(query) {
+  const results = await searchPhotonLocations({ query, limit: 1 });
+  const result = results[0];
+  if (!result?.coordinates?.lat || !result?.coordinates?.lon) {
+    throw statusError(`Could not find a precise UK location for "${query}". Please select a suggested address.`, 422);
+  }
+  return result.coordinates;
+}
+
+function formatPhotonLabel(properties = {}) {
+  return [
+    properties.name,
+    properties.street && properties.housenumber ? `${properties.housenumber} ${properties.street}` : properties.street,
+    properties.district,
+    properties.city || properties.town || properties.village || properties.county,
+    properties.postcode,
+    properties.country
+  ].filter(Boolean).filter((value, index, values) => values.indexOf(value) === index).join(", ");
 }
 
 function statusError(message, status) {
